@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Uploader</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Cargar Imágenes</h1>
+        <form action="/upload" method="post" enctype="multipart/form-data">
+            <div class="custom-file mb-3">
+                <input type="file" class="custom-file-input" id="file" name="file" onchange="updateFileName(this)">
+                <label class="custom-file-label" for="file" id="fileLabel">Seleccionar archivo</label>
+            </div>
+            <button type="submit" class="btn btn-primary">Cargar</button>
+        </form>
+        <div class="mt-4">
+            <a href="/gallery" class="btn btn-success">Galería</a>
+            <button type="button" class="btn btn-info ml-2" onclick="classifyImage()">Clasificar</button>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        function updateFileName(input) {
+            var fileName = input.files[0].name;
+            var label = document.getElementById('fileLabel');
+            label.innerText = fileName;
+        }
+
+        function classifyImage() {
+            var form = document.querySelector('form');
+            form.action = '/classify';
+            form.submit();
+        }
+    </script>
+</body>
+</html>

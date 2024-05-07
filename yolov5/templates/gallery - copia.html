@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Gallery</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <h1>Galería</h1>
+    <div>
+        <div style="display: flex; flex-wrap: wrap;">
+            {% for image_name in image_names %}
+                <div style="margin: 10px;">
+                    <img src="{{ url_for('static', filename='uploads/' + image_name) }}" alt="{{ image_name }}" style="max-width: 200px;">
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <br>
+    <a href="/" style="display: block; text-align: center;">Volver a inicio</a>
+</body>
+</html>
