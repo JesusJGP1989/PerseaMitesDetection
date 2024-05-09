@@ -1,7 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for
 import os
 import subprocess
-
+import PIL
+from PIL import Image
 
 app = Flask(__name__)
 
@@ -12,11 +13,22 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['RESULTS_FOLDER'] = RESULTS_FOLDER
 
 
+# Function to resize the uploaded image
+def resize_image(image_path, target_size=(224, 224)):
+    try:
+        img = Image.open(image_path)
+        img = img.resize(target_size, PIL.Image.LANCZOS)
+        img.save(image_path)
+        return True, None
+    except Exception as e:
+        error_msg = f"Error resizing image: {e}"
+        return False, error_msg
+
 def is_image_uploaded(image_name):
     # Get list of predicted images
     result_image_names = os.listdir(app.config['RESULTS_FOLDER'])
     return image_name in result_image_names
-        
+
 # Route to the index page
 @app.route('/')
 def index():
@@ -26,14 +38,27 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload():
     if 'file' not in request.files:
-        return redirect(request.url)
+        error_msg = "No file selected for upload."
+        return render_template('error.html', error_message=error_msg)
+    
     file = request.files['file']
     if file.filename == '':
-        return redirect(request.url)
+        error_msg = "No file selected for upload."
+        return render_template('error.html', error_message=error_msg)
+    
     if file:
         filename = file.filename
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(file_path)
+        # Resize the uploaded image
+        success, error_msg = resize_image(file_path)
+        if not success:
+            # Handle error here (e.g., return an error message to the user)
+            print("Error occurred during image resizing:", error_msg)
+            # Redirect to some error page or display an error message to the user
+            return render_template('error.html', error_message=error_msg)
         return redirect(url_for('index'))
+
 
 # Route to classify images
 @app.route('/classify', methods=['POST'])
@@ -49,13 +74,13 @@ def classify():
         
         image_uploaded = is_image_uploaded(image)
         
-        if  image_uploaded == False:
+        if not image_uploaded:
             #Command to clasify image using the trained YOLOv5 model
             cmd_command = f"python classify/predict.py --weights {training_weights} --source {image_path}"  
             # Execute the command using subprocess
             process = subprocess.Popen(cmd_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             # Wait for the process to finish
-            process.wait()
+            #process.wait()
             
             # Capture the output and error (if any)
             error = process.communicate()
