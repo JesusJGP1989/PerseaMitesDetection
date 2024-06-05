@@ -2,25 +2,22 @@ from werkzeug.utils import secure_filename
 from flask import Flask, render_template, request, redirect, url_for
 import os
 import subprocess
-import PIL
+import shlex
 from PIL import Image
 import logging
 from logging.handlers import RotatingFileHandler
 
 # Initialize Flask app
 app = Flask(__name__)
+# Configuration
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['RESULTS_FOLDER'] = 'static/results/exp'
+app.config['TRAINING_WEIGHTS'] = 'runs/train-cls/exp18/weights/best.pt'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Limit upload size to 16MB
 
-# Load the pre-trained YOLO model weights to perform inference on the images
-TRAINING_WEIGHTS = "runs/train-cls/exp18/weights/best.pt"
-app.config['TRAINING_WEIGHTS'] = TRAINING_WEIGHTS
-
-# Folder to store uploaded images
-UPLOAD_FOLDER = 'static/uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-# Folder to store results
-RESULTS_FOLDER = 'static/results/exp'
-app.config['RESULTS_FOLDER'] = RESULTS_FOLDER
+# Ensure upload and results directories exist
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['RESULTS_FOLDER'], exist_ok=True)
 
 # Set up logging
 if not os.path.exists('logs'):
@@ -34,13 +31,14 @@ file_handler.setLevel(logging.INFO)
 
 app.logger.addHandler(file_handler)
 app.logger.setLevel(logging.INFO)
-app.logger.info('Flask app startup')
+
 
 # Function to resize the uploaded image
 def resize_image(image_path, target_size=(224, 224)):
+    app.logger.info(f"Resizing image: {image_path} to size {target_size}")
     try:
         img = Image.open(image_path)
-        img = img.resize(target_size, PIL.Image.LANCZOS)
+        img = img.resize(target_size, Image.LANCZOS)
         img.save(image_path)
         return True, None
     except Exception as e:
@@ -51,16 +49,19 @@ def resize_image(image_path, target_size=(224, 224)):
 # Function to check if the file is an image
 def is_image_file(filename):
     allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
+    result = '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
+    return result
 
 # Function to check if the image is already uploaded
 def is_image_uploaded(image_name):
     result_image_names = os.listdir(app.config['RESULTS_FOLDER'])
-    return image_name in result_image_names
+    result = image_name in result_image_names
+    return result
 
 # Route to the index page
 @app.route('/')
 def index():
+
     return render_template('index.html')
 
 # Route to handle image upload
@@ -96,6 +97,26 @@ def upload():
         app.logger.error(error_msg)
         return render_template('error.html', error_message=error_msg)
 
+# Function to classify a single image
+def classify_image(image_path):
+    try:
+        # Command to classify image using the trained YOLOv5 model
+        cmd_command = [
+            "python", "classify/predict.py",
+            "--weights", app.config['TRAINING_WEIGHTS'],
+            "--source", image_path
+        ]
+        # Execute the command using subprocess
+        process = subprocess.Popen(cmd_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+        if process.returncode != 0:
+            raise Exception(stderr.decode())
+    except Exception as e:
+        error_msg = f"Error classifying image: {str(e)}"
+        app.logger.error(error_msg)
+        return False, error_msg
+    return True, None
+
 # Route to classify images
 @app.route('/classify', methods=['POST'])
 def classify():
@@ -105,17 +126,8 @@ def classify():
         image_path = os.path.join(app.config['UPLOAD_FOLDER'], image)
         
         if not is_image_uploaded(image):
-            try:
-                # Command to classify image using the trained YOLOv5 model
-                cmd_command = f"python classify/predict.py --weights {app.config['TRAINING_WEIGHTS']} --source {image_path}"  
-                # Execute the command using subprocess
-                process = subprocess.Popen(cmd_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                if process.returncode != 0:
-                    raise Exception(stderr.decode())
-            except Exception as e:
-                error_msg = f"Error classifying image: {str(e)}"
-                app.logger.error(error_msg)
+            success, error_msg = classify_image(image_path)
+            if not success:
                 return render_template('error.html', error_message=error_msg)
     
     result_image_names = os.listdir(app.config['RESULTS_FOLDER'])
@@ -128,4 +140,4 @@ def gallery():
     return render_template('gallery.html', image_names=image_names)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, threaded=True, port=8000)
