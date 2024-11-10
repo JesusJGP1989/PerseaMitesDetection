@@ -19,7 +19,7 @@ ultralytics>=8.0.232
 # protobuf<=3.20.1  # https://github.com/ultralytics/yolov5/issues/8012
 Flask>=2.0.2
 Werkzeug>=2.0.2
-
+gunicorn>=20.1.0
 
 # Logging ---------------------------------------------------------------------
 # tensorboard>=2.4.1

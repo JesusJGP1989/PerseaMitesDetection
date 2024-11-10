@@ -1,14 +1,14 @@
-from werkzeug.utils import secure_filename
-from flask import Flask, render_template, request, redirect, url_for
 import os
 import subprocess
-import shlex
+from flask import Flask, render_template, request, redirect, url_for
+from werkzeug.utils import secure_filename
 from PIL import Image
 import logging
 from logging.handlers import RotatingFileHandler
 
 # Initialize Flask app
 app = Flask(__name__)
+
 # Configuration
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['RESULTS_FOLDER'] = 'static/results/exp'
@@ -32,10 +32,9 @@ file_handler.setLevel(logging.INFO)
 app.logger.addHandler(file_handler)
 app.logger.setLevel(logging.INFO)
 
-
 # Function to resize the uploaded image
 def resize_image(image_path, target_size=(224, 224)):
-    app.logger.info(f"Resizing image: {image_path} to size {target_size}")
+
     try:
         img = Image.open(image_path)
         img = img.resize(target_size, Image.LANCZOS)
@@ -49,19 +48,16 @@ def resize_image(image_path, target_size=(224, 224)):
 # Function to check if the file is an image
 def is_image_file(filename):
     allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
-    result = '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
-    return result
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
 # Function to check if the image is already uploaded
 def is_image_uploaded(image_name):
     result_image_names = os.listdir(app.config['RESULTS_FOLDER'])
-    result = image_name in result_image_names
-    return result
+    return image_name in result_image_names
 
 # Route to the index page
 @app.route('/')
 def index():
-
     return render_template('index.html')
 
 # Route to handle image upload
@@ -107,7 +103,7 @@ def classify_image(image_path):
             "--source", image_path
         ]
         # Execute the command using subprocess
-        process = subprocess.Popen(cmd_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process = subprocess.Popen(cmd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = process.communicate()
         if process.returncode != 0:
             raise Exception(stderr.decode())
@@ -140,4 +136,4 @@ def gallery():
     return render_template('gallery.html', image_names=image_names)
 
 if __name__ == '__main__':
-    app.run(debug=True, threaded=True, port=8000)
+    app.run(threaded=True, port=8000)
