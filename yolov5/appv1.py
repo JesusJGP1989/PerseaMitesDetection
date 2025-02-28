@@ -13,7 +13,7 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['RESULTS_FOLDER'] = 'static/results/exp'
 app.config['TRAINING_WEIGHTS'] = 'runs/train-cls/exp18/weights/best.pt'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Limit upload size to 16MB
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # Limit upload size to 16MB
 
 # Ensure upload and results directories exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -24,9 +24,7 @@ if not os.path.exists('logs'):
     os.mkdir('logs')
 
 file_handler = RotatingFileHandler('logs/flask_app.log', maxBytes=10240, backupCount=10)
-file_handler.setFormatter(logging.Formatter(
-    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-))
+file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'))
 file_handler.setLevel(logging.INFO)
 
 app.logger.addHandler(file_handler)
@@ -63,35 +61,44 @@ def index():
 # Route to handle image upload
 @app.route('/upload', methods=['POST'])
 def upload():
-    if 'file' not in request.files:
-        error_msg = "No file selected for upload."
+    if 'files[]' not in request.files:
+        error_msg = "No files selected for upload."
         app.logger.error(error_msg)
         return render_template('error.html', error_message=error_msg)
     
-    file = request.files['file']
-    if file.filename == '':
-        error_msg = "No file selected for upload."
+    files = request.files.getlist('files[]')  # Get multiple files
+    if not files or all(file.filename == '' for file in files):
+        error_msg = "No files selected for upload."
         app.logger.error(error_msg)
         return render_template('error.html', error_message=error_msg)
+
+    uploaded_files = []
     
-    if file and is_image_file(file.filename):
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        try:
-            file.save(file_path)
-            # Resize the uploaded image
-            success, error_msg = resize_image(file_path)
-            if not success:
-                raise Exception(error_msg)
-            return redirect(url_for('index'))
-        except Exception as e:
-            error_msg = f"Error uploading file: {str(e)}"
+    for file in files:
+        if file and is_image_file(file.filename):
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            
+            try:
+                file.save(file_path)
+                # Resize the uploaded image
+                success, error_msg = resize_image(file_path)
+                if not success:
+                    raise Exception(error_msg)
+                
+                uploaded_files.append(filename)
+            except Exception as e:
+                error_msg = f"Error uploading file {filename}: {str(e)}"
+                app.logger.error(error_msg)
+                return render_template('error.html', error_message=error_msg)
+        else:
+            error_msg = f"Invalid file format: {file.filename}. Please upload an image file."
             app.logger.error(error_msg)
             return render_template('error.html', error_message=error_msg)
-    else:
-        error_msg = "Invalid file format. Please upload an image file."
-        app.logger.error(error_msg)
-        return render_template('error.html', error_message=error_msg)
+    
+    app.logger.info(f"Successfully uploaded files: {uploaded_files}")
+    return redirect(url_for('index'))
+
 
 # Function to classify a single image
 def classify_image(image_path):
@@ -117,7 +124,8 @@ def classify_image(image_path):
 @app.route('/classify', methods=['POST'])
 def classify():
     image_names = os.listdir(app.config['UPLOAD_FOLDER'])
-    
+    classified_images = []
+
     for image in image_names:
         image_path = os.path.join(app.config['UPLOAD_FOLDER'], image)
         
@@ -125,8 +133,11 @@ def classify():
             success, error_msg = classify_image(image_path)
             if not success:
                 return render_template('error.html', error_message=error_msg)
-    
+            classified_images.append(image)
+
     result_image_names = os.listdir(app.config['RESULTS_FOLDER'])
+    app.logger.info(f"Classified images: {classified_images}")
+    
     return render_template('results.html', result_image_names=result_image_names)
 
 # Route to open the gallery page
